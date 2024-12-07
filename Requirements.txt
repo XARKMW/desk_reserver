@@ -1,0 +1,3 @@
+selenium==4.16.0
+schedule==1.2.0
+webdriver_manager==4.0.1
