@@ -1,0 +1,38 @@
+{
+  "family": "desk-booking-bot",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "containerDefinitions": [
+    {
+      "name": "desk-booking-bot",
+      "image": "YOUR-ACCOUNT-ID.dkr.ecr.REGION.amazonaws.com/desk-booking-bot:latest",
+      "essential": true,
+      "environment": [
+        {
+          "name": "BOOKING_USERNAME",
+          "value": "dummy"  // Will be overridden by SSM Parameter Store
+        },
+        {
+          "name": "BOOKING_PASSWORD",
+          "value": "dummy"  // Will be overridden by SSM Parameter Store
+        },
+        {
+          "name": "BOOKING_URL",
+          "value": "dummy"  // Will be overridden by SSM Parameter Store
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/desk-booking-bot",
+          "awslogs-region": "REGION",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ],
+  "executionRoleArn": "arn:aws:iam::YOUR-ACCOUNT-ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::YOUR-ACCOUNT-ID:role/ecsTaskRole"
+}

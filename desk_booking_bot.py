@@ -3,8 +3,12 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
+from dotenv import load_dotenv
 import os
 import logging
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -16,14 +20,15 @@ logger = logging.getLogger(__name__)
 class DeskBookingBot:
     def __init__(self):
         self.chrome_options = Options()
-        self.chrome_options.add_argument('--headless')
+        # self.chrome_options.add_argument('--headless')
         self.chrome_options.add_argument('--no-sandbox')
         self.chrome_options.add_argument('--disable-dev-shm-usage')
+        self.chrome_options.add_argument('--window-size=1920,1080')
 
         # Environment variables for credentials
-        self.username = os.environ.get('BOOKING_USERNAME')
-        self.password = os.environ.get('BOOKING_PASSWORD')
-        self.booking_url = os.environ.get('BOOKING_URL')
+        self.username = os.getenv('BOOKING_USERNAME')  # Changed from os.environ.get
+        self.password = os.getenv('BOOKING_PASSWORD')  # Changed from os.environ.get
+        self.booking_url = os.getenv('BOOKING_URL')    # Changed from os.environ.get
 
         if not all([self.username, self.password, self.booking_url]):
             raise ValueError("Missing required environment variables")

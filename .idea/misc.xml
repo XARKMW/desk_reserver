@@ -3,7 +3,7 @@
   <component name="Black">
     <option name="sdkName" value="Pipenv (desk_reserver)" />
   </component>
-  <component name="ProjectRootManager">
+  <component name="ProjectRootManager" version="2" languageLevel="JDK_22" project-jdk-name="Python 3.8" project-jdk-type="Python SDK">
     <output url="file://$PROJECT_DIR$/out" />
   </component>
 </project>
