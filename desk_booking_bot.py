@@ -26,9 +26,9 @@ class DeskBookingBot:
         self.chrome_options.add_argument('--window-size=1920,1080')
 
         # Environment variables for credentials
-        self.username = os.getenv('BOOKING_USERNAME')  # Changed from os.environ.get
-        self.password = os.getenv('BOOKING_PASSWORD')  # Changed from os.environ.get
-        self.booking_url = os.getenv('BOOKING_URL')    # Changed from os.environ.get
+        self.username = os.getenv('BOOKING_USERNAME')
+        self.password = os.getenv('BOOKING_PASSWORD')
+        self.booking_url = os.getenv('BOOKING_URL')
 
         if not all([self.username, self.password, self.booking_url]):
             raise ValueError("Missing required environment variables")
