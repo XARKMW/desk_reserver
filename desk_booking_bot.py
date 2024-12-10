@@ -4,7 +4,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from dotenv import load_dotenv
-import os
+from secure_credentials import SecureCredentialHandler
 import logging
 
 # Load environment variables from .env file
@@ -25,13 +25,17 @@ class DeskBookingBot:
         self.chrome_options.add_argument('--disable-dev-shm-usage')
         self.chrome_options.add_argument('--window-size=1920,1080')
 
-        # Environment variables for credentials
-        self.username = os.getenv('BOOKING_USERNAME')
-        self.password = os.getenv('BOOKING_PASSWORD')
-        self.booking_url = os.getenv('BOOKING_URL')
+        # Load secure credentials
+        credential_handler = SecureCredentialHandler()
+        credentials = credential_handler.load_credentials()
+
+        # Set credentials
+        self.username = credentials['BOOKING_USERNAME']
+        self.password = credentials['BOOKING_PASSWORD']
+        self.booking_url = credentials['BOOKING_URL']
 
         if not all([self.username, self.password, self.booking_url]):
-            raise ValueError("Missing required environment variables")
+            raise ValueError("Missing required credentials")
 
     def setup_driver(self):
         """Initialize and return a Chrome WebDriver"""
@@ -44,20 +48,42 @@ class DeskBookingBot:
         try:
             driver.get(self.booking_url)
 
-            # Add your login sequence here
-            username_field = driver.find_element(By.ID, "username")
-            password_field = driver.find_element(By.ID, "password")
-            login_button = driver.find_element(By.ID, "login-button")
-
-            username_field.send_keys(self.username)
-            password_field.send_keys(self.password)
-            login_button.click()
-
-            # Wait for login to complete
+            # What's your workspace?
+            workspace_input = driver.find_element(By.CSS_SELECTOR, "[aria-label='your-workspace-url']")
+            workspace_input.send_keys("unimelb")
+            workspace_button = driver.find_element(By.CSS_SELECTOR, ".sc-17uyjaq-5")
+            workspace_button.click()
+            # Wait for procession to login page
             WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.CLASS_NAME, "dashboard"))
+                EC.presence_of_element_located((By.ID, "okta-login-container"))
             )
-            logger.info("Login successful")
+            logger.info("Login page")
+
+            # Enter Username
+            username_field = driver.find_element(By.ID, "input28")
+            next_button = driver.find_element(By.CSS_SELECTOR, "input[value='Next']")
+            username_field.send_keys(self.username)
+            next_button.click()
+            # Wait for Next
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.XPATH, "//*[text()='Verify with your password']"))
+            )
+
+            # Enter Password
+            password_field = driver.find_element(By.ID, "input54")
+            verify_button = driver.find_element(By.CSS_SELECTOR, "input[value='Verify']")
+            password_field.send_keys(self.password)
+            verify_button.click()
+            # Wait for Okta
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, ".authenticator-verify-list"))
+            )
+
+            # Okta push notification verify
+            push_notification_button = driver.find_element(By.CSS_SELECTOR, "[data-se='okta_verify-push']")
+            push_notification_button.click()
+
+            logger.info("Awaiting push notification")
 
         except Exception as e:
             logger.error(f"Login failed: {str(e)}")

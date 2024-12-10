@@ -5,13 +5,13 @@ import os
 import json
 from datetime import datetime
 import pytz
+from dotenv import load_dotenv
 
 class SecureCredentialHandler:
     def __init__(self):
         self.key_file = 'encryption_key.key'
         self.cred_file = 'encrypted_credentials.json'
 
-        # Generate or load encryption key
         if os.path.exists(self.key_file):
             with open(self.key_file, 'rb') as key_file:
                 self.key = key_file.read()
@@ -24,8 +24,9 @@ class SecureCredentialHandler:
 
     def store_credentials(self):
         """Initial setup: Get and store encrypted credentials"""
-        username = input("Enter username: ")
-        password = getpass.getpass("Enter password: ")
+        print("Enter booking credentials:")
+        username = input("BOOKING_USERNAME: ")
+        password = getpass.getpass("BOOKING_PASSWORD: ")
 
         # Encrypt credentials
         encrypted_username = self.cipher_suite.encrypt(username.encode()).decode()
@@ -51,10 +52,16 @@ class SecureCredentialHandler:
         if not os.path.exists(self.cred_file):
             raise FileNotFoundError("No stored credentials found. Run store_credentials() first.")
 
+        # Load encrypted credentials
         with open(self.cred_file, 'r') as f:
             creds_data = json.load(f)
 
-        username = self.cipher_suite.decrypt(creds_data['username'].encode()).decode()
-        password = self.cipher_suite.decrypt(creds_data['password'].encode()).decode()
+        booking_url = "https://engage.spaceiq.com/floor/1667/desks/16193"
 
-        return username, password
+        decrypted_data = {
+            'BOOKING_USERNAME': self.cipher_suite.decrypt(creds_data['username'].encode()).decode(),
+            'BOOKING_PASSWORD': self.cipher_suite.decrypt(creds_data['password'].encode()).decode(),
+            'BOOKING_URL': booking_url
+        }
+
+        return decrypted_data
