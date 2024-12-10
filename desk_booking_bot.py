@@ -93,7 +93,7 @@ class DeskBookingBot:
         """Handle the desk booking process"""
         try:
             # Await page
-            WebDriverWait(driver, 10).until(
+            WebDriverWait(driver, 60).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, ".openseadragon-canvas"))
             )
 
