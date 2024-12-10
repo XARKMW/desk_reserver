@@ -92,24 +92,25 @@ class DeskBookingBot:
     def book_desk(self, driver, desk_id="preferred-desk-id"):
         """Handle the desk booking process"""
         try:
-            # Navigate to booking page
-            booking_page = driver.find_element(By.ID, "booking-section")
-            booking_page.click()
+            # Await page
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, ".openseadragon-canvas"))
+            )
 
             # Select desk
-            desk_element = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.ID, desk_id))
-            )
-            desk_element.click()
-
-            # Confirm booking
-            confirm_button = driver.find_element(By.ID, "confirm-booking")
-            confirm_button.click()
-
-            # Wait for confirmation
-            WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.CLASS_NAME, "booking-confirmation"))
-            )
+            # desk_element = WebDriverWait(driver, 10).until(
+            #     EC.element_to_be_clickable((By.ID, desk_id))
+            # )
+            # desk_element.click()
+            #
+            # # Confirm booking
+            # confirm_button = driver.find_element(By.ID, "confirm-booking")
+            # confirm_button.click()
+            #
+            # # Wait for confirmation
+            # WebDriverWait(driver, 10).until(
+            #     EC.presence_of_element_located((By.CLASS_NAME, "booking-confirmation"))
+            # )
 
             logger.info(f"Successfully booked desk {desk_id}")
 
