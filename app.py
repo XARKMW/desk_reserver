@@ -5,6 +5,7 @@ from seleniumwire import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.chrome.service import Service
 import logging
 
@@ -52,7 +53,7 @@ except Exception as e:
     raise
 
 def setup_driver(proxy=None):
-    """Initialize and return a Chrome WebDriver"""
+    """Initialize and return a Chrome WebDriver with enhanced options"""
     def request_interceptor(request):
         logger.info(f"Outgoing request: {request.url}")
 
@@ -71,14 +72,22 @@ def setup_driver(proxy=None):
     chrome_options.add_argument("window-size=2560x1440")
     chrome_options.add_argument("--user-data-dir=/tmp/chrome-user-data")
     chrome_options.add_argument("--remote-debugging-port=9222")
-    # Additional options for stability
+
+    # Additional stability options
     chrome_options.add_argument("--ignore-certificate-errors")
     chrome_options.add_argument("--allow-running-insecure-content")
     chrome_options.add_argument("--disable-extensions")
     chrome_options.add_argument("--disable-logging")
     chrome_options.add_argument("--disable-notifications")
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-    # Set user agent to look more like a regular browser
+
+    # New network and security options
+    chrome_options.add_argument("--disable-web-security")
+    chrome_options.add_argument("--disable-features=IsolateOrigins,site-per-process")
+    chrome_options.add_argument("--dns-prefetch-disable")
+    chrome_options.add_argument("--network-settings=native")
+
+    # Enhanced user agent
     chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36")
 
     options = {
@@ -95,9 +104,17 @@ def setup_driver(proxy=None):
         logger.info(f"Setting up proxy: {proxy}")
 
     try:
-        logger.info("Setting up Chrome driver with options")
+        logger.info("Setting up Chrome driver with enhanced options")
         service = Service(executable_path="/opt/chromedriver")
         driver = webdriver.Chrome(service=service, options=chrome_options, seleniumwire_options=options)
+
+        # Set network conditions
+        driver.set_network_conditions(
+            latency=100,  # Additional latency (ms)
+            download_throughput=500 * 1024,  # Maximal throughput
+            upload_throughput=500 * 1024  # Maximal throughput
+        )
+
         logger.info("Chrome driver setup successful")
         return driver
     except Exception as e:
@@ -105,106 +122,114 @@ def setup_driver(proxy=None):
         raise
 
 def login(driver):
-    """Handle the login process"""
+    """Handle the login process with enhanced error handling and logging"""
+    current_step = "initial"
     try:
-        logger.info("Starting login process")
+        logger.info(f"Starting login process at URL: {BOOKING_URL}")
 
-        # Initial page load with increased timeout
-        logger.info("Waiting for initial page load...")
+        # Initial page load with logging
+        current_step = "page_load"
+        driver.get(BOOKING_URL)
+
+        # Wait for initial body load
         WebDriverWait(driver, 30).until(
             EC.presence_of_element_located((By.TAG_NAME, "body"))
         )
-        logger.info("Initial body element found")
+        logger.info("Initial page body loaded")
 
-        logger.info(f"Navigating to booking URL: {BOOKING_URL}")
-        driver.get(BOOKING_URL)
-        logger.info("Navigation to booking URL completed")
-
-        # What's your workspace? - increased timeout
-        logger.info("Waiting for workspace input field...")
+        # Workspace input step
+        current_step = "workspace_input"
         workspace_input = WebDriverWait(driver, 30).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "[aria-label='your-workspace-url']"))
+            EC.any_of(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "[aria-label='your-workspace-url']")),
+                EC.presence_of_element_located((By.CSS_SELECTOR, "input[placeholder*='workspace']"))
+            )
         )
-        logger.info("Found workspace input field")
         workspace_input.send_keys("unimelb")
         logger.info("Entered workspace URL")
 
-        workspace_button = driver.find_element(By.CSS_SELECTOR, ".sc-17uyjaq-5")
+        # Find and click workspace button with multiple possible selectors
+        workspace_button = WebDriverWait(driver, 30).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, ".sc-17uyjaq-5, button[type='submit']"))
+        )
         workspace_button.click()
         logger.info("Clicked workspace button")
 
-        # Wait for login page with increased timeout
-        logger.info("Waiting for Okta login container...")
+        # Wait for SSO login form
+        current_step = "sso_form_wait"
+        logger.info("Waiting for SSO login form...")
         WebDriverWait(driver, 30).until(
-            EC.presence_of_element_located((By.ID, "okta-login-container"))
+            EC.presence_of_element_located((By.CSS_SELECTOR, "form[class*='o-form']"))
         )
-        logger.info("Login page loaded successfully")
+        logger.info("SSO login form detected")
 
-        # Enter Username with explicit wait and multiple possible selectors
-        logger.info("Waiting for username field...")
-        try:
-            # Try multiple possible selectors for the username field
-            username_field = WebDriverWait(driver, 30).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR,
-                                                "input[name='identifier'], input[name='username'], input[type='email'], #okta-signin-username"))
-            )
-            logger.info("Username field found")
+        # Enhanced username field detection
+        current_step = "username_input"
+        username_field = WebDriverWait(driver, 30).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR,
+                                            "input[name='username'], input[name='okta-signin-username'], input[type='email']"))
+        )
 
-            # Try multiple possible selectors for the next button
-            next_button = WebDriverWait(driver, 30).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR,
-                                            "input[value='Next'], button[type='submit'], .button-primary, #okta-signin-submit"))
-            )
+        # Add a small delay before typing
+        driver.implicitly_wait(2)
+        username_field.clear()
+        username_field.send_keys(USERNAME)
+        logger.info("Username entered")
 
-            # Add a small delay before typing
-            driver.implicitly_wait(2)
-            username_field.clear()
-            username_field.send_keys(USERNAME)
-            logger.info("Username entered")
+        # Find and click next button with multiple possible selectors
+        next_button = WebDriverWait(driver, 30).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR,
+                                        "input[value='Next'], button[type='submit'], .button-primary, #okta-signin-submit"))
+        )
+        next_button.click()
+        logger.info("Next button clicked")
 
-            next_button.click()
-            logger.info("Next button clicked")
-        except Exception as e:
-            logger.error("Failed to interact with username form")
-            logger.error(f"Available elements on page: {driver.page_source}")
-            raise
-
-        # Wait for password page with increased timeout
-        logger.info("Waiting for password verification page...")
+        # Wait for password page with enhanced error handling
+        current_step = "password_page_wait"
         WebDriverWait(driver, 30).until(
-            EC.presence_of_element_located((By.XPATH, "//*[text()='Verify with your password']"))
+            EC.any_of(
+                EC.presence_of_element_located((By.XPATH, "//*[text()='Verify with your password']")),
+                EC.presence_of_element_located((By.CSS_SELECTOR, "input[name='credentials.passcode']"))
+            )
         )
         logger.info("Password verification page loaded")
 
-        # Enter Password
-        logger.info("Entering password...")
-        password_field = driver.find_element(By.CSS_SELECTOR, "input[name='credentials.passcode']")
-        verify_button = driver.find_element(By.CSS_SELECTOR, "input[value='Verify']")
+        # Enhanced password field handling
+        current_step = "password_input"
+        password_field = WebDriverWait(driver, 30).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "input[name='credentials.passcode'], input[type='password']"))
+        )
+        verify_button = WebDriverWait(driver, 30).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, "input[value='Verify'], button[type='submit']"))
+        )
+
         password_field.send_keys(PASSWORD)
         verify_button.click()
         logger.info("Password entered and verify button clicked")
 
-        # Wait for Okta with increased timeout
-        logger.info("Waiting for Okta authenticator list...")
-        WebDriverWait(driver, 30).until(
+        # Wait for Okta authenticator with enhanced timeout
+        current_step = "okta_authenticator_wait"
+        WebDriverWait(driver, 45).until(  # Increased timeout for authenticator
             EC.presence_of_element_located((By.CSS_SELECTOR, ".authenticator-verify-list"))
         )
         logger.info("Okta authenticator list loaded")
 
-        # Okta push notification verify
-        logger.info("Looking for push notification button...")
-        push_notification_button = driver.find_element(By.CSS_SELECTOR, "[data-se='okta_verify-push']")
+        # Enhanced push notification handling
+        current_step = "push_notification"
+        push_notification_button = WebDriverWait(driver, 30).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, "[data-se='okta_verify-push'], .push-authentication"))
+        )
         push_notification_button.click()
         logger.info("Push notification sent successfully")
 
     except Exception as e:
-        logger.error(f"Login failed with exception type: {type(e)}")
-        logger.error(f"Login failed with message: {str(e)}")
+        logger.error(f"Login failed at step: {current_step}")
+        logger.error(f"Exception type: {type(e)}")
+        logger.error(f"Exception message: {str(e)}")
         logger.error(f"Current URL: {driver.current_url}")
         try:
-            logger.error(f"Page source at time of error: {driver.page_source[:1000]}...")  # Increased to 1000 chars
-            logger.error("Current page title: %s", driver.title)
-            # Log all cookies for debugging
+            logger.error(f"Page title: {driver.title}")
+            logger.error(f"DOM snapshot: {driver.page_source[:1000]}")
             cookies = driver.get_cookies()
             logger.error(f"Current cookies: {json.dumps(cookies, indent=2)}")
         except Exception as inner_e:
@@ -221,24 +246,7 @@ def book_desk(driver, desk_id="preferred-desk-id"):
         )
         logger.info("Booking page loaded successfully")
 
-        # Note: Commenting out actual booking for testing
-        # desk_element = WebDriverWait(driver, 30).until(
-        #     EC.element_to_be_clickable((By.ID, desk_id))
-        # )
-        # desk_element.click()
-        # logger.info(f"Clicked desk {desk_id}")
-        #
-        # # Confirm booking
-        # confirm_button = driver.find_element(By.ID, "confirm-booking")
-        # confirm_button.click()
-        # logger.info("Clicked confirm booking button")
-        #
-        # # Wait for confirmation
-        # WebDriverWait(driver, 30).until(
-        #     EC.presence_of_element_located((By.CLASS_NAME, "booking-confirmation"))
-        # )
-        # logger.info("Booking confirmation received")
-
+        # Note: Commented out actual booking for testing
         logger.info(f"Successfully reached booking stage for desk {desk_id}")
 
     except Exception as e:
