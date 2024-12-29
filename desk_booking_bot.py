@@ -2,13 +2,9 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.options import Options
-from dotenv import load_dotenv
-from secure_credentials import SecureCredentialHandler
+from selenium.webdriver.chrome.service import Service
 import logging
-
-# Load environment variables from .env file
-load_dotenv()
+from secure_credentials import SecureCredentialHandler
 
 # Configure logging
 logging.basicConfig(
@@ -18,12 +14,17 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class DeskBookingBot:
-    def __init__(self):
-        self.chrome_options = Options()
-        # self.chrome_options.add_argument('--headless')
-        self.chrome_options.add_argument('--no-sandbox')
-        self.chrome_options.add_argument('--disable-dev-shm-usage')
-        self.chrome_options.add_argument('--window-size=1920,1080')
+    def __init__(self, chrome_options=None):
+        # Set up Chrome options if not provided
+        if chrome_options is None:
+            from selenium.webdriver.chrome.options import Options
+            chrome_options = Options()
+            chrome_options.add_argument('--headless')
+            chrome_options.add_argument('--no-sandbox')
+            chrome_options.add_argument('--disable-dev-shm-usage')
+            chrome_options.add_argument('--window-size=1920,1080')
+
+        self.chrome_options = chrome_options
 
         # Load secure credentials
         credential_handler = SecureCredentialHandler()
@@ -39,7 +40,8 @@ class DeskBookingBot:
 
     def setup_driver(self):
         """Initialize and return a Chrome WebDriver"""
-        driver = webdriver.Chrome(options=self.chrome_options)
+        service = Service(executable_path='/opt/chrome/chromedriver')
+        driver = webdriver.Chrome(service=service, options=self.chrome_options)
         driver.implicitly_wait(10)
         return driver
 
@@ -47,6 +49,7 @@ class DeskBookingBot:
         """Handle the login process"""
         try:
             driver.get(self.booking_url)
+            logger.info("Navigating to booking URL")
 
             # What's your workspace?
             workspace_input = driver.find_element(By.CSS_SELECTOR, "[aria-label='your-workspace-url']")
@@ -57,7 +60,7 @@ class DeskBookingBot:
             WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.ID, "okta-login-container"))
             )
-            logger.info("Login page")
+            logger.info("Login page loaded")
 
             # Enter Username
             username_field = driver.find_element(By.ID, "input28")
@@ -68,6 +71,7 @@ class DeskBookingBot:
             WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.XPATH, "//*[text()='Verify with your password']"))
             )
+            logger.info("Username entered")
 
             # Enter Password
             password_field = driver.find_element(By.ID, "input54")
@@ -78,12 +82,12 @@ class DeskBookingBot:
             WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, ".authenticator-verify-list"))
             )
+            logger.info("Password entered")
 
             # Okta push notification verify
             push_notification_button = driver.find_element(By.CSS_SELECTOR, "[data-se='okta_verify-push']")
             push_notification_button.click()
-
-            logger.info("Awaiting push notification")
+            logger.info("Push notification sent")
 
         except Exception as e:
             logger.error(f"Login failed: {str(e)}")
@@ -96,8 +100,9 @@ class DeskBookingBot:
             WebDriverWait(driver, 60).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, ".openseadragon-canvas"))
             )
+            logger.info("Booking page loaded")
 
-            # Select desk
+            # Note: Commenting out actual booking for testing
             # desk_element = WebDriverWait(driver, 10).until(
             #     EC.element_to_be_clickable((By.ID, desk_id))
             # )
@@ -112,7 +117,7 @@ class DeskBookingBot:
             #     EC.presence_of_element_located((By.CLASS_NAME, "booking-confirmation"))
             # )
 
-            logger.info(f"Successfully booked desk {desk_id}")
+            logger.info(f"Successfully reached booking stage for desk {desk_id}")
 
         except Exception as e:
             logger.error(f"Desk booking failed: {str(e)}")
@@ -123,6 +128,7 @@ class DeskBookingBot:
         driver = None
         try:
             driver = self.setup_driver()
+            logger.info("Driver setup complete")
             self.login(driver)
             self.book_desk(driver)
             return True
@@ -134,12 +140,3 @@ class DeskBookingBot:
         finally:
             if driver:
                 driver.quit()
-
-def main():
-    bot = DeskBookingBot()
-    success = bot.run_booking_sequence()
-    # Exit with appropriate status code for AWS
-    exit(0 if success else 1)
-
-if __name__ == "__main__":
-    main()

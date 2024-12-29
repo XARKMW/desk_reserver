@@ -1,27 +1,24 @@
-FROM python:3.8-slim
+FROM public.ecr.aws/lambda/python:3.10 as stage
 
-# Install Chrome and Chrome WebDriver
-RUN apt-get update && apt-get install -y \
-    chromium \
-    chromium-driver \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+RUN yum install -y -q sudo unzip
 
-# Set up working directory
-WORKDIR /app
+ENV CHROMIUM_VERSION=1002910
 
-# Copy requirements first to leverage Docker cache
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY install-browser.sh /tmp/
+RUN /usr/bin/bash /tmp/install-browser.sh
 
-# Copy the application code
-COPY . .
+FROM public.ecr.aws/lambda/python:3.10 as base
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV BOOKING_USERNAME=""
-ENV BOOKING_PASSWORD=""
-ENV BOOKING_URL=""
+COPY chrome-deps.txt /tmp/
+RUN yum install -y $(cat /tmp/chrome-deps.txt)
 
-# Run the bot
-CMD ["python", "desk_booking_bot.py"]
+COPY requirements.txt /tmp/
+RUN python3 -m pip install --upgrade pip -q
+RUN python3 -m pip install -r /tmp/requirements.txt -q 
+
+
+COPY --from=stage /opt/chrome /opt/chrome
+COPY --from=stage /opt/chromedriver /opt/chromedriver
+COPY app.py ${LAMBDA_TASK_ROOT}
+
+CMD [ "app.handler" ]
