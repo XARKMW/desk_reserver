@@ -16,34 +16,19 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def load_credentials():
-    """Load credentials from AWS SSM Parameter Store"""
-    try:
-        logger.info("Attempting to load credentials from SSM")
-        ssm = boto3.client('ssm')
-        params = {
-            'BOOKING_USERNAME': ssm.get_parameter(
-                Name='/desk_booking/username',
-                WithDecryption=True
-            )['Parameter']['Value'],
-            'BOOKING_PASSWORD': ssm.get_parameter(
-                Name='/desk_booking/password',
-                WithDecryption=True
-            )['Parameter']['Value'],
-            'BOOKING_URL': "https://engage.spaceiq.com/floor/1667/desks/16193"
-        }
-        logger.info("Successfully loaded credentials from SSM")
-        return params
-    except ClientError as e:
-        logger.error(f"Failed to load credentials from SSM: {str(e)}")
-        raise Exception(f"Failed to load credentials from SSM: {str(e)}")
-
-# Load credentials at module level
+# Initialize global credentials
 try:
-    credentials = load_credentials()
-    USERNAME = credentials['BOOKING_USERNAME']
-    PASSWORD = credentials['BOOKING_PASSWORD']
-    BOOKING_URL = credentials['BOOKING_URL']
+    logger.info("Attempting to load credentials from SSM")
+    ssm = boto3.client('ssm')
+    USERNAME = ssm.get_parameter(
+        Name='/desk_booking/username',
+        WithDecryption=True
+    )['Parameter']['Value']
+    PASSWORD = ssm.get_parameter(
+        Name='/desk_booking/password',
+        WithDecryption=True
+    )['Parameter']['Value']
+    BOOKING_URL = "https://engage.spaceiq.com/floor/1667/desks/16193"
 
     if not all([USERNAME, PASSWORD, BOOKING_URL]):
         raise ValueError("Missing required credentials")
@@ -163,11 +148,10 @@ def login(driver):
         )
         logger.info("SSO login form detected")
 
-        # Enhanced username field detection
+        # Username field detection
         current_step = "username_input"
         username_field = WebDriverWait(driver, 30).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR,
-                                            "input[name='username'], input[name='okta-signin-username'], input[type='email']"))
+            EC.presence_of_element_located((By.CSS_SELECTOR, "input[name='identifier']"))
         )
 
         # Add a small delay before typing
@@ -176,10 +160,9 @@ def login(driver):
         username_field.send_keys(USERNAME)
         logger.info("Username entered")
 
-        # Find and click next button with multiple possible selectors
+        # Click next button
         next_button = WebDriverWait(driver, 30).until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR,
-                                        "input[value='Next'], button[type='submit'], .button-primary, #okta-signin-submit"))
+            EC.element_to_be_clickable((By.CSS_SELECTOR, "input.button.button-primary[type='submit'][value='Next']"))
         )
         next_button.click()
         logger.info("Next button clicked")
@@ -246,8 +229,22 @@ def book_desk(driver, desk_id="preferred-desk-id"):
         )
         logger.info("Booking page loaded successfully")
 
-        # Note: Commented out actual booking for testing
-        logger.info(f"Successfully reached booking stage for desk {desk_id}")
+        # Select desk
+        desk_element = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.ID, desk_id))
+        )
+        desk_element.click()
+
+        # Confirm booking
+        confirm_button = driver.find_element(By.ID, "confirm-booking")
+        confirm_button.click()
+
+        # Wait for confirmation
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CLASS_NAME, "booking-confirmation"))
+        )
+
+        logger.info(f"Successfully booked desk {desk_id}")
 
     except Exception as e:
         logger.error(f"Desk booking failed: {str(e)}")
