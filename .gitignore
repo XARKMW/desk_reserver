@@ -1,3 +1,4 @@
 .aws-sam
 /encrypted_credentials.json
 /encryption_key.key
+/.env
